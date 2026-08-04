@@ -1,10 +1,11 @@
 import type { Metadata, Viewport } from "next"
-import { Geist, Geist_Mono } from "next/font/google"
+import { IBM_Plex_Sans_Arabic, Geist_Mono } from "next/font/google"
 import "./globals.css"
 
-const geistSans = Geist({
+const geistSans = IBM_Plex_Sans_Arabic({
   variable: "--font-geist-sans",
-  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  subsets: ["arabic", "latin"],
 })
 
 const geistMono = Geist_Mono({
@@ -18,7 +19,7 @@ export const metadata: Metadata = {
 }
 
 export const viewport: Viewport = {
-  themeColor: "#0b0b0d",
+  themeColor: "#000000",
   width: "device-width",
   initialScale: 1,
   userScalable: false,

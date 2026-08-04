@@ -1,12 +1,14 @@
 @import "tailwindcss";
 
 :root {
-  /* 5 colors: deep ink bg, elevated surface, light foreground, muted, iOS orange accent */
-  --background: #0b0b0d;
+  /* neutrals: true black, elevated surface, light foreground, muted grey */
+  --background: #000000;
   --surface: #1c1c1e;
   --foreground: #f2f2f7;
   --muted: #8e8e93;
-  --accent: #ff9f0a;
+  /* accents: gold sweep hand + iOS red */
+  --accent: #c8912f;
+  --alert: #ff3b30;
   --radius: 1.25rem;
 }
 
@@ -16,6 +18,7 @@
   --color-foreground: var(--foreground);
   --color-muted: var(--muted);
   --color-accent: var(--accent);
+  --color-alert: var(--alert);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
   --radius-card: var(--radius);

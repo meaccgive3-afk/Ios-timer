@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import { AnalogTimerFace } from "./analog-timer-face"
+import { RemainingPanel } from "./remaining-panel"
 import { WheelPicker } from "./wheel-picker"
 
 type Phase = "idle" | "running" | "paused" | "done"
@@ -13,15 +14,6 @@ const PRESETS = [
   { label: "٢٥ دقيقة", ms: 25 * 60_000 },
   { label: "ساعة", ms: 60 * 60_000 },
 ]
-
-function fmt(ms: number) {
-  const total = Math.max(0, Math.ceil(ms / 1000))
-  const h = Math.floor(total / 3600)
-  const m = Math.floor((total % 3600) / 60)
-  const s = total % 60
-  const pad = (n: number) => String(n).padStart(2, "0")
-  return h > 0 ? `${pad(h)}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`
-}
 
 export function SmoothTimer() {
   const [hours, setHours] = useState(1)
@@ -48,7 +40,9 @@ export function SmoothTimer() {
 
   const chime = useCallback(() => {
     try {
-      const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
+      const Ctx =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
       const ctx = audioRef.current ?? new Ctx()
       audioRef.current = ctx
       const now = ctx.currentTime
@@ -120,99 +114,119 @@ export function SmoothTimer() {
 
   const editing = phase === "idle"
 
-  return (
-    <div className="flex w-full max-w-md flex-col items-center gap-5">
-      <div className="relative flex flex-col items-center gap-2">
-        <AnalogTimerFace totalMs={totalMs || 1} remainingMs={remainingMs} size={240} />
+  const statusLabel =
+    phase === "running" ? "يعمل" : phase === "paused" ? "متوقف مؤقتاً" : "انتهى"
 
-        <div className="flex flex-col items-center gap-0.5">
-          <span
-            className={`font-mono text-3xl tabular-nums tracking-tight ${
-              phase === "done" ? "text-accent" : "text-foreground"
-            }`}
-          >
-            {fmt(remainingMs)}
-          </span>
-          <span className="text-xs text-muted">
-            {phase === "running"
-              ? "جاري العد التنازلي"
-              : phase === "paused"
-                ? "متوقف مؤقتاً"
-                : phase === "done"
-                  ? "انتهى الوقت"
-                  : "اختر المدة ثم ابدأ"}
-          </span>
-        </div>
+  const [endsAt, setEndsAt] = useState<string | null>(null)
+  useEffect(() => {
+    if (phase !== "running" && phase !== "paused") {
+      setEndsAt(null)
+      return
+    }
+    const d = new Date(Date.now() + remainingMs)
+    setEndsAt(
+      `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`,
+    )
+    // نحدّثه عند تغيّر الحالة فقط، لا كل فريم
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase])
+
+  return (
+    <div
+      dir="ltr"
+      className="flex w-full flex-col items-center gap-10 md:flex-row md:items-center md:justify-center md:gap-16"
+    >
+      {/* الساعة */}
+      <div className="shrink-0">
+        <AnalogTimerFace
+          totalMs={totalMs || 1}
+          remainingMs={remainingMs}
+          size={300}
+        />
       </div>
 
-      {editing ? (
-        <div className="flex w-full flex-col items-center gap-4 rounded-card bg-surface/40 p-4">
-          <div className="flex items-start justify-center gap-2" dir="ltr">
-            <WheelPicker label="ساعات" count={24} value={hours} onChange={setHours} />
-            <WheelPicker label="دقائق" count={60} value={minutes} onChange={setMinutes} />
-            <WheelPicker label="ثواني" count={60} value={secs} onChange={setSecs} />
-          </div>
+      {/* اللوحة اليمنى: الإعداد أو المتبقي */}
+      <div dir="rtl" className="flex w-full max-w-xs flex-col gap-6">
+        {editing ? (
+          <section className="flex flex-col gap-5" aria-label="اختيار المدة">
+            <h2 className="text-xl font-semibold tracking-tight text-alert">المدة</h2>
 
-          <div className="flex flex-wrap items-center justify-center gap-2">
-            {PRESETS.map((p) => (
-              <button
-                key={p.label}
-                type="button"
-                onClick={() => applyPreset(p.ms)}
-                className="rounded-full bg-surface px-4 py-2 text-sm text-foreground transition-colors hover:bg-surface/70"
-              >
-                {p.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      ) : null}
+            <div className="flex items-start justify-center gap-2" dir="ltr">
+              <WheelPicker label="ساعات" count={24} value={hours} onChange={setHours} />
+              <WheelPicker label="دقائق" count={60} value={minutes} onChange={setMinutes} />
+              <WheelPicker label="ثواني" count={60} value={secs} onChange={setSecs} />
+            </div>
 
-      <div className="flex items-center justify-center gap-4">
-        {phase === "running" ? (
-          <button
-            type="button"
-            onClick={() => setPhase("paused")}
-            className="h-20 w-20 rounded-full bg-surface text-base font-semibold text-foreground transition-transform active:scale-95"
-          >
-            إيقاف
-          </button>
-        ) : phase === "paused" ? (
-          <button
-            type="button"
-            onClick={resume}
-            className="h-20 w-20 rounded-full bg-accent text-base font-semibold text-background transition-transform active:scale-95"
-          >
-            متابعة
-          </button>
-        ) : phase === "idle" ? (
-          <button
-            type="button"
-            onClick={start}
-            disabled={pickedMs <= 0}
-            className="h-20 w-20 rounded-full bg-accent text-base font-semibold text-background transition-transform active:scale-95 disabled:opacity-40"
-          >
-            ابدأ
-          </button>
+            <div className="flex flex-wrap justify-center gap-2">
+              {PRESETS.map((p) => (
+                <button
+                  key={p.label}
+                  type="button"
+                  onClick={() => applyPreset(p.ms)}
+                  className="rounded-full bg-surface px-3 py-1.5 text-xs text-foreground transition-colors hover:bg-surface/70"
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+          </section>
         ) : (
-          <button
-            type="button"
-            onClick={reset}
-            className="h-20 w-20 rounded-full bg-accent text-base font-semibold text-background transition-transform active:scale-95"
-          >
-            تم
-          </button>
+          <RemainingPanel
+            remainingMs={remainingMs}
+            totalMs={totalMs}
+            showHours={totalMs >= 3600_000}
+            statusLabel={statusLabel}
+            endsAt={endsAt}
+          />
         )}
 
-        {phase !== "idle" ? (
-          <button
-            type="button"
-            onClick={reset}
-            className="h-20 w-20 rounded-full bg-surface text-base font-semibold text-muted transition-transform active:scale-95"
-          >
-            تصفير
-          </button>
-        ) : null}
+        {/* الأزرار */}
+        <div className="flex items-center justify-center gap-3">
+          {phase === "running" ? (
+            <button
+              type="button"
+              onClick={() => setPhase("paused")}
+              className="h-16 w-16 rounded-full bg-surface text-sm font-semibold text-foreground transition-transform active:scale-95"
+            >
+              إيقاف
+            </button>
+          ) : phase === "paused" ? (
+            <button
+              type="button"
+              onClick={resume}
+              className="h-16 w-16 rounded-full bg-alert text-sm font-semibold text-foreground transition-transform active:scale-95"
+            >
+              متابعة
+            </button>
+          ) : phase === "idle" ? (
+            <button
+              type="button"
+              onClick={start}
+              disabled={pickedMs <= 0}
+              className="h-16 w-16 rounded-full bg-alert text-sm font-semibold text-foreground transition-transform active:scale-95 disabled:opacity-40"
+            >
+              ابدأ
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={reset}
+              className="h-16 w-16 rounded-full bg-alert text-sm font-semibold text-foreground transition-transform active:scale-95"
+            >
+              تم
+            </button>
+          )}
+
+          {phase !== "idle" ? (
+            <button
+              type="button"
+              onClick={reset}
+              className="h-16 w-16 rounded-full bg-surface text-sm font-semibold text-muted transition-transform active:scale-95"
+            >
+              تصفير
+            </button>
+          ) : null}
+        </div>
       </div>
     </div>
   )
