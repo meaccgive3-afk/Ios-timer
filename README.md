@@ -40,7 +40,7 @@ base64 -w 0 release.keystore > keystore.txt
 
 ## البناء محليًا (اختياري)
 
-يتطلب Node 20، JDK 21، و Android SDK.
+يتطلب Node 22، JDK 21، و Android SDK.
 
 ```bash
 npm install
