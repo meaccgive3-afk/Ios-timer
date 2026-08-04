@@ -6,7 +6,7 @@ const isAppBuild = process.env.BUILD_TARGET === "app"
 const nextConfig: NextConfig = isAppBuild
   ? {
       output: "export",
-      distDir: ".next-app",
+      // بدون distDir مخصص: التصدير الثابت يذهب إلى out/ وهو ما يقرأه Capacitor
       images: { unoptimized: true },
       trailingSlash: true,
     }
