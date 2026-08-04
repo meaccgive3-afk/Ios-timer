@@ -8,7 +8,11 @@ const nextConfig: NextConfig = isAppBuild
       output: "export",
       // بدون distDir مخصص: التصدير الثابت يذهب إلى out/ وهو ما يقرأه Capacitor
       images: { unoptimized: true },
-      trailingSlash: true,
+      // مهم لـ WebView: مع trailingSlash يطلب موجّه Next حِزم RSC من مسارات
+      // بشرطة مائلة زائدة لا يعرفها سيرفر Capacitor المحلي فتفشل بـ 404،
+      // وإطفاء إعادة التوجيه يمنع الموجّه من محاولة تصحيح المسار من الأساس.
+      trailingSlash: false,
+      skipTrailingSlashRedirect: true,
     }
   : {
       async headers() {
