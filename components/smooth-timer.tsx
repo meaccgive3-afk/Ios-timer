@@ -4,6 +4,14 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { AnalogTimerFace } from "./analog-timer-face"
 import { RemainingPanel } from "./remaining-panel"
 import { WheelPicker } from "./wheel-picker"
+import {
+  ensureNotificationPermission,
+  onNativeTimerState,
+  pauseLiveTimer,
+  resumeLiveTimer,
+  startLiveTimer,
+  stopLiveTimer,
+} from "@/lib/live-timer"
 
 type Phase = "idle" | "running" | "paused" | "done"
 
@@ -63,12 +71,14 @@ export function SmoothTimer() {
     }
   }, [])
 
-  // حلقة العرض: تحديث كل فريم => العقارب تتحرك بسلاسة
+  // حلقة العرض: تحديث كل فريم => العقارب تتحرك بسلاسة.
+  // نعتمد على Date.now() (ساعة الحائط) لا performance.now() حتى يبقى الوقت
+  // صحيحاً بعد رجوع التطبيق من الخلفية أو استيقاظ الجهاز من النوم.
   useEffect(() => {
     if (phase !== "running") return
 
     const tick = () => {
-      const left = endAtRef.current - performance.now()
+      const left = endAtRef.current - Date.now()
       if (left <= 0) {
         setRemainingMs(0)
         setPhase("done")
@@ -86,23 +96,78 @@ export function SmoothTimer() {
     }
   }, [phase, chime])
 
-  const start = () => {
+  // إعادة المزامنة عند رجوع التطبيق للمقدمة: النظام يوقف requestAnimationFrame
+  // في الخلفية، فنعيد حساب المتبقي من نهاية المؤقت المحفوظة.
+  useEffect(() => {
+    const resync = () => {
+      if (document.visibilityState !== "visible") return
+      setPhase((current) => {
+        if (current !== "running") return current
+        const left = endAtRef.current - Date.now()
+        if (left <= 0) {
+          setRemainingMs(0)
+          return "done"
+        }
+        setRemainingMs(left)
+        return current
+      })
+    }
+
+    document.addEventListener("visibilitychange", resync)
+    window.addEventListener("focus", resync)
+    return () => {
+      document.removeEventListener("visibilitychange", resync)
+      window.removeEventListener("focus", resync)
+    }
+  }, [])
+
+  // مزامنة عكسية: أزرار الإشعار / الجزيرة الديناميكية تُغيّر حالة الواجهة
+  useEffect(() => {
+    return onNativeTimerState(({ state, remainingMs: left }) => {
+      if (state === "paused") {
+        setRemainingMs(left)
+        setPhase("paused")
+      } else if (state === "running") {
+        endAtRef.current = Date.now() + left
+        setPhase("running")
+      } else if (state === "done") {
+        setRemainingMs(0)
+        setPhase("done")
+      } else if (state === "idle") {
+        setPhase("idle")
+      }
+    })
+  }, [])
+
+  const start = async () => {
     if (pickedMs <= 0) return
+    const endAt = Date.now() + pickedMs
     setTotalMs(pickedMs)
     setRemainingMs(pickedMs)
-    endAtRef.current = performance.now() + pickedMs
+    endAtRef.current = endAt
     setPhase("running")
+
+    await ensureNotificationPermission()
+    void startLiveTimer(endAt, pickedMs, "المؤقت")
+  }
+
+  const pause = () => {
+    setRemainingMs(Math.max(0, endAtRef.current - Date.now()))
+    setPhase("paused")
+    void pauseLiveTimer()
   }
 
   const resume = () => {
-    endAtRef.current = performance.now() + remainingMs
+    endAtRef.current = Date.now() + remainingMs
     setPhase("running")
+    void resumeLiveTimer()
   }
 
   const reset = () => {
     setPhase("idle")
     setRemainingMs(pickedMs)
     setTotalMs(pickedMs)
+    void stopLiveTimer()
   }
 
   const applyPreset = (ms: number) => {
@@ -185,7 +250,7 @@ export function SmoothTimer() {
           {phase === "running" ? (
             <button
               type="button"
-              onClick={() => setPhase("paused")}
+              onClick={pause}
               className="h-16 w-16 rounded-full bg-surface text-sm font-semibold text-foreground transition-transform active:scale-95"
             >
               إيقاف
