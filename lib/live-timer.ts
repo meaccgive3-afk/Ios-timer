@@ -7,9 +7,19 @@
  * - iOS: يستدعي نفس الإضافة المكتوبة بـ Swift + ActivityKit فيظهر العدّاد في
  *   الجزيرة الديناميكية وشاشة القفل.
  * - الويب: لا شيء — تُتجاهل النداءات بهدوء.
+ *
+ * مهم: نستخدم `registerPlugin` من `@capacitor/core` (استيراد ثابت) بدل قراءة
+ * `Capacitor.Plugins.LiveTimer` أو `import()` الديناميكي. الإضافات المكتوبة
+ * داخل مشروع أندرويد لا تُسجَّل في `capacitor.plugins.json`، لذلك كان الوصول
+ * إليها عبر `Capacitor.Plugins` يعطي `undefined` دائماً. والاستيراد الثابت يمنع
+ * أيضاً تحميل حِزم JS منفصلة داخل WebView وهو سبب شائع لانهيار الصفحة.
  */
 
+import { Capacitor, registerPlugin } from "@capacitor/core"
+
 export type TimerState = "idle" | "running" | "paused" | "done"
+
+type PluginListenerHandle = { remove: () => Promise<void> }
 
 type LiveTimerPlugin = {
   start(options: { endAt: number; totalMs: number; label: string }): Promise<void>
@@ -20,34 +30,32 @@ type LiveTimerPlugin = {
   addListener(
     event: "timerState",
     handler: (data: { state: TimerState; remainingMs: number }) => void,
-  ): Promise<{ remove: () => Promise<void> }>
-  requestPermissions?(): Promise<{ notifications: string }>
-  checkPermissions?(): Promise<{ notifications: string }>
+  ): Promise<PluginListenerHandle>
+  requestPermissions(): Promise<{ notifications: string }>
+  checkPermissions(): Promise<{ notifications: string }>
 }
 
-type CapacitorGlobal = {
-  isNativePlatform?: () => boolean
-  getPlatform?: () => string
-  Plugins?: Record<string, unknown>
-}
-
-function capacitor(): CapacitorGlobal | undefined {
-  return (globalThis as { Capacitor?: CapacitorGlobal }).Capacitor
-}
+const LiveTimer = registerPlugin<LiveTimerPlugin>("LiveTimer")
 
 export function isNative(): boolean {
-  return capacitor()?.isNativePlatform?.() === true
+  try {
+    return Capacitor.isNativePlatform()
+  } catch {
+    return false
+  }
 }
 
 export function nativePlatform(): string {
-  return capacitor()?.getPlatform?.() ?? "web"
+  try {
+    return Capacitor.getPlatform()
+  } catch {
+    return "web"
+  }
 }
 
+/** يعيد الإضافة على الأجهزة الأصلية فقط، وإلا `null` حتى لا نستدعي شيئاً على الويب. */
 function plugin(): LiveTimerPlugin | null {
-  const cap = capacitor()
-  if (!cap?.isNativePlatform?.()) return null
-  const found = cap.Plugins?.LiveTimer
-  return (found as LiveTimerPlugin | undefined) ?? null
+  return isNative() ? LiveTimer : null
 }
 
 /** يطلب صلاحية الإشعارات (أندرويد ١٣+ و iOS) عند أول تشغيل. */
@@ -55,11 +63,12 @@ export async function ensureNotificationPermission(): Promise<boolean> {
   const p = plugin()
   if (!p) return false
   try {
-    const current = await p.checkPermissions?.()
+    const current = await p.checkPermissions()
     if (current?.notifications === "granted") return true
-    const asked = await p.requestPermissions?.()
+    const asked = await p.requestPermissions()
     return asked?.notifications === "granted"
-  } catch {
+  } catch (error) {
+    console.log("[v0] notification permission failed:", error)
     return false
   }
 }
@@ -108,15 +117,19 @@ export function onNativeTimerState(
   let remove: (() => Promise<void>) | null = null
   let cancelled = false
 
-  p.addListener("timerState", handler)
-    .then((handle) => {
-      if (cancelled) {
-        void handle.remove()
-        return
-      }
-      remove = handle.remove
-    })
-    .catch((error) => console.log("[v0] listener failed:", error))
+  try {
+    p.addListener("timerState", handler)
+      .then((handle) => {
+        if (cancelled) {
+          void handle.remove()
+          return
+        }
+        remove = handle.remove
+      })
+      .catch((error) => console.log("[v0] listener failed:", error))
+  } catch (error) {
+    console.log("[v0] listener failed:", error)
+  }
 
   return () => {
     cancelled = true
