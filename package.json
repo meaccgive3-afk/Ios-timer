@@ -6,14 +6,23 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "build:app": "BUILD_TARGET=app next build",
+    "sync:android": "npm run build:app && npx cap sync android",
+    "apk:debug": "npm run sync:android && cd android && ./gradlew assembleDebug",
+    "apk:release": "npm run sync:android && cd android && ./gradlew assembleRelease"
   },
   "dependencies": {
+    "@capacitor/core": "^8.5.0",
+    "@capacitor/splash-screen": "^8.0.2",
+    "@capacitor/status-bar": "^8.0.3",
     "next": "16.3.0",
     "react": "19.2.8",
     "react-dom": "19.2.8"
   },
   "devDependencies": {
+    "@capacitor/android": "^8.5.0",
+    "@capacitor/cli": "^8.5.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",

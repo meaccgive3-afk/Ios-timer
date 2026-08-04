@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">المؤقت</string>
+    <string name="title_activity_main">المؤقت</string>
+    <string name="package_name">com.iostimer.app</string>
+    <string name="custom_url_scheme">com.iostimer.app</string>
+</resources>

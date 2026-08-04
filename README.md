@@ -1,36 +1,74 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# المؤقت — تطبيق أندرويد (APK)
 
-## Getting Started
+تطبيق مؤقت بعقارب انسيابية، مبني بـ Next.js ومغلّف كتطبيق أندرويد أصلي عبر Capacitor.
+يعمل كموقع ويب وكتطبيق APK من نفس الكود.
 
-First, run the development server:
+## كيف أحصل على ملف APK؟
+
+الطريقة الأسهل — من غيتهب مباشرة، بدون أي برامج على جهازك:
+
+1. اذهب إلى تبويب **Actions** في المستودع على GitHub.
+2. اختر **Build Android APK** من القائمة الجانبية.
+3. البناء يشتغل تلقائيًا مع كل `push`. أو اضغط **Run workflow** لتشغيله يدويًا.
+4. بعد انتهاء البناء (علامة صح خضراء)، افتح صفحة البناء وانزل لأسفل إلى **Artifacts**.
+5. نزّل `timer-apk-debug` — بداخله ملف `app-debug.apk`.
+6. انقل الملف لهاتفك، وفعّل **تثبيت من مصادر غير معروفة**، ثم ثبّته.
+
+نسخة `debug` موقّعة بمفتاح تجريبي وتُثبّت وتعمل بشكل طبيعي على أي هاتف — مناسبة للاستخدام الشخصي والتجربة.
+
+## نسخة release موقّعة (لمتجر Play)
+
+إذا أردت نسخة release موقّعة بمفتاحك الخاص:
+
+1. أنشئ مفتاح توقيع:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+keytool -genkey -v -keystore release.keystore -alias timer -keyalg RSA -keysize 2048 -validity 10000
+base64 -w 0 release.keystore > keystore.txt
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+2. في GitHub: **Settings → Secrets and variables → Actions → New repository secret**، وأضف:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+| السر | القيمة |
+| --- | --- |
+| `KEYSTORE_BASE64` | محتوى `keystore.txt` |
+| `KEYSTORE_PASSWORD` | كلمة مرور الـ keystore |
+| `KEY_ALIAS` | `timer` |
+| `KEY_PASSWORD` | كلمة مرور المفتاح |
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+3. شغّل الـ workflow يدويًا واختر `release` من قائمة **نوع البناء**.
 
-## Learn More
+## البناء محليًا (اختياري)
 
-To learn more about Next.js, take a look at the following resources:
+يتطلب Node 20، JDK 21، و Android SDK.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+npm install
+npm run apk:debug     # ينتج android/app/build/outputs/apk/debug/app-debug.apk
+npm run apk:release   # نسخة release
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## أوامر المشروع
 
-## Deploy on Vercel
+| الأمر | الوظيفة |
+| --- | --- |
+| `npm run dev` | تشغيل الموقع للتطوير |
+| `npm run build` | بناء الموقع للنشر على Vercel |
+| `npm run build:app` | تصدير ثابت في `out/` للتطبيق |
+| `npm run sync:android` | تصدير + مزامنة مشروع أندرويد |
+| `npm run apk:debug` | بناء APK للتجربة |
+| `npm run apk:release` | بناء APK موقّع |
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## بنية المشروع
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `app/`, `components/` — واجهة المؤقت (Next.js + React)
+- `components/native-shell.tsx` — إعدادات شريط الحالة وشاشة البداية للتطبيق الأصلي
+- `capacitor.config.ts` — إعدادات Capacitor (اسم التطبيق، الهوية، الألوان)
+- `android/` — مشروع أندرويد الأصلي
+- `.github/workflows/build-apk.yml` — بناء APK تلقائيًا على GitHub Actions
+
+## ملاحظات تقنية
+
+- `BUILD_TARGET=app` يحوّل Next.js إلى `output: "export"` لإنتاج ملفات ثابتة يقرأها WebView.
+- كل مكونات المؤقت تعمل على العميل، لذا لا حاجة لأي سيرفر داخل التطبيق.
+- التطبيق مثبّت على الوضع الرأسي مع ثيم أسود كامل لتجنّب أي وميض أبيض عند الإطلاق.

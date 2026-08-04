@@ -15,7 +15,13 @@
 
 # next.js
 /.next/
+/.next-app/
 /out/
+
+# capacitor: keystores must never be committed
+# (بقية ملفات أندرويد المولّدة مستثناة في android/.gitignore)
+*.keystore
+*.jks
 
 # production
 /build
